@@ -1,0 +1,15 @@
+
+defaults:
+  - _self_
+  - optimizer: optimizer.yaml
+test: test
+task_name: debug
+
+loss: BCELoss
+metric: Accuracy
+num_epochs: 100
+patience: 10
+
+
+transform_name: basic
+name_outsubmit: output

@@ -27,3 +27,12 @@ transform_train = transforms.Compose(
         ),  # Normalize all the images
     ]
 )
+
+
+def get_transform(transform_name:str="basic"):
+    transform=None
+    if transform_name=="basic":
+        transform=transforms.Resize((98, 98))
+    else:
+        return ValueError(f"Transform {transform_name} not found")
+    return transform
