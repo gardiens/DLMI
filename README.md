@@ -38,3 +38,28 @@ Run main.py ou template.ipynb( non recommandé)pour avoir les résultats
 )
 # Lien article 
 https://plmlatex.math.cnrs.fr/6883838787kyvnjgwzxsns
+
+
+# A implémenter:
+-> Sélection par rapport aux cliniques/ nom des cliniques . ( en trainig/test)
+-> Regarder si il n'y a pas un biais sur les données? 
+-> Sélection par rapport à différent backbone ( dino v2/dino large)
+selon GPT:
+  -> VGG-16
+  -> MobileNetV3
+  -> Resnet-18/50
+  -> Swin-Transformer 
+  -> ResNest (????)
+
+-> Changer le finetune layer
+  -> Ajouter LoRA? 
+  ->  Ajouter Un linear probing plus complexe(?)
+  -> 
+-> Train un modèle basique à partir de rien (CNN/Transformers)
+-> Ajouter de la data augmentation 
+  -> CutMIX
+  -> Noise/flip/Distort? ( en backbone ou en Linear Probing)
+
+-> Rajouter plus de métriques pour le rapport?
+
+-> Self supervised learning?
