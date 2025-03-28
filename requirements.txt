@@ -5,7 +5,13 @@ pytest
 pre-commit
 matplotlib
 
+pandas
 numpy
 tqdm
 notebook
 tensorboard
+# torchmetrics
+h5py
+jupyter
+ipykernel
+ipywidgets
