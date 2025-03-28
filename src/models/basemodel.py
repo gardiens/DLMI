@@ -1,13 +1,13 @@
 import torch.nn as nn
-class mainmodel(nn.Module):
-    def __init__(self,model,linear_probing):
-        super(mainmodel, self).__init__()
-        self.feature_extractor = model
-        self.linear_probing=linear_probing
-    def forward(self,x):
-        x=self.feature_extractor(x)
-        x=self.linear_probing(x)
-        return x
+# class mainmodel(nn.Module):
+#     def __init__(self,model,linear_probing):
+#         super(mainmodel, self).__init__()
+#         self.feature_extractor = model
+#         self.linear_probing=linear_probing
+#     def forward(self,x):
+#         x=self.feature_extractor(x)
+#         x=self.linear_probing(x)
+#         return x
     
 import torch 
 class baseLine(nn.Module):

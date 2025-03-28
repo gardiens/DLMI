@@ -10,6 +10,27 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from src.dataset.baseline import BaselineDataset,PrecomputedDataset,precompute
 from src.models.basemodel import baseLine
+import hydra 
+import logging
+from src.transforms.naive_transforms import get_transform
+logging.getLogger('xformers').setLevel(logging.ERROR)
+import warnings
+warnings.filterwarnings("ignore", message="xFormers is not available")
+try:
+    import clearml
+
+    clearml_found = True
+    # clearml_found = False
+except ImportError:
+    clearml_found = False
+def setup_clearml(task_name,cfg):
+    if clearml_found:
+        from src.logger.clearml import safe_init_clearml
+
+        task = safe_init_clearml(project_name="DLMI", task_name=task_name)
+        task.connect(cfg)
+
+    return task
 def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device):
     for epoch in tqdm(range(NUM_EPOCHS)):
         linear_probing.train()
@@ -45,6 +66,7 @@ def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,cr
             torch.save(linear_probing.state_dict(), 'best_model.pth')
 
         if epoch - best_epoch == PATIENCE:
+            print("We exceeded the patience, we stop at epoch",epoch)
             break
     return linear_probing
 def set_seed():
@@ -55,7 +77,7 @@ def set_seed():
 def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,name_out="baseline.csv"):
     # test_dataset=BaselineDataset(TEST_IMAGES_PATH,preprocessing=preprocessing,mode="test")
     test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE)
-    print("start")
+    print("start testing")
     x,y=precompute(test_dataloader, model.feature_extractor, device)
     test_dataset = PrecomputedDataset(features=x, labels=y)
     test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=2)
@@ -75,8 +97,14 @@ def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,name_out="baseline.
     solutions_data.to_csv(name_out)
     print("The predictions are saved in the file",name_out)
     return solutions_data
-def main():
+
+@hydra.main(version_base="1.2", config_path="configs", config_name="main.yaml")
+def main(cfg):
     set_seed()
+    if clearml_found:
+        task = setup_clearml(
+            cfg=cfg,task_name=cfg.task_name
+        )
     print("start training",flush=True)
     BATCH_SIZE = 128
     num_workers=2
@@ -85,11 +113,13 @@ def main():
     TEST_IMAGES_PATH = 'test.h5'
     SEED = 0
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+    name_out_submit = (
+        "submit/" + cfg.name_out_submit + str(random.randint(0, 255)) + ".csv"
+    )
     #! Preprocessing 
     print("Preprocessing the dataset",flush=True)
 
-    preprocessing = transforms.Resize((98, 98))
+    preprocessing = get_transform(transform_name=cfg.transform_name)
     train_dataset = BaselineDataset(TRAIN_IMAGES_PATH, preprocessing, 'train')
     val_dataset = BaselineDataset(VAL_IMAGES_PATH, preprocessing, 'train')
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE,num_workers=num_workers)
@@ -101,36 +131,42 @@ def main():
 
     feature_extractor=Main_model.feature_extractor
 
-    
+
+    # --- Setup functions
+    OPTIMIZER = cfg.optimizer.optimizer
+    OPTIMIZER_PARAMS = cfg.optimizer.optimizer_params #{'lr': 0.001}
+    print("optimizer params",OPTIMIZER_PARAMS,type(OPTIMIZER_PARAMS))
+    LOSS = cfg.loss
+    METRIC = cfg.metric
+    NUM_EPOCHS = cfg.num_epochs
+    PATIENCE = cfg.patience
+    linear_probing=Main_model.linear_probing
+    # Load function 
+    metric = getattr(torchmetrics, METRIC)('binary')
+
+    optimizer = getattr(torch.optim, OPTIMIZER)(linear_probing.parameters(), **OPTIMIZER_PARAMS)
+    criterion = getattr(torch.nn, LOSS)()
+    print("the optimizer",optimizer)
+
+    #* ---precompute the features---
     print("Precompute the features",flush=True)
-    # for i in tqdm(range(10)):
-    #     print("test tqdm ")
     x,y=precompute(train_dataloader, feature_extractor, device)
     print("We did it once",flush=True)
     train_dataset = PrecomputedDataset(features=x, labels=y)
     x,y=precompute(val_dataloader, feature_extractor, device)
     val_dataset = PrecomputedDataset(features=x, labels=y)
-    linear_probing=Main_model.linear_probing
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE,num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
+    
+    #* ---train the model---
     print("Start training the last layer",flush=True)
-    OPTIMIZER = 'Adam'
-    OPTIMIZER_PARAMS = {'lr': 0.001}
-    LOSS = 'BCELoss'
-    METRIC = 'Accuracy'
-    NUM_EPOCHS = 100
-    PATIENCE = 10
 
-    optimizer = getattr(torch.optim, OPTIMIZER)(linear_probing.parameters(), **OPTIMIZER_PARAMS)
-    criterion = getattr(torch.nn, LOSS)()
-    metric = getattr(torchmetrics, METRIC)('binary')
-    min_loss, best_epoch = float('inf'), 0
     linear_probing = train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device)
     
     #* Test the model
     test_dataset = BaselineDataset(TEST_IMAGES_PATH, preprocessing, 'test')
     print("Test the model",flush=True)
-    test_model(model=Main_model,test_dataset=test_dataset,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out="baseline.csv")
+    test_model(model=Main_model,test_dataset=test_dataset,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out=name_out_submit)
     return linear_probing
     
 if __name__=="__main__":
