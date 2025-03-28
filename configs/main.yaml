@@ -2,6 +2,7 @@
 defaults:
   - _self_
   - optimizer: optimizer.yaml
+  - model: Baseline.yaml
 test: test
 task_name: debug
 
@@ -10,6 +11,7 @@ metric: Accuracy
 num_epochs: 100
 patience: 10
 
-
+num_workers: 2
+batch_size: 128
 transform_name: basic
-name_outsubmit: output
+name_out_submit: output 
