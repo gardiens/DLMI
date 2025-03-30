@@ -63,3 +63,19 @@ selon GPT:
 -> Rajouter plus de métriques pour le rapport?
 
 -> Self supervised learning?
+
+
+-> changer  la résolution
+
+-> Préentrainer/finetuné?
+
+->  Faire plusieurs Data Augmentation pour ensuite concaténer les features et faire 
+
+-> Faire augmentation en inférence pour prendre la moyenne et prendre la prédiction(?)
+
+
+-> Triangle LR pour valeur haute et basse? 
+
+https://github.com/azkalot1/Histopathologic-Cancer-Detection/blob/master/utils.py
+
+-> AUG_train a voir

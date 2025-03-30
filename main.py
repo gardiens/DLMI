@@ -108,6 +108,17 @@ def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,name_out="baseline.
     solutions_data = pd.DataFrame(solutions_data).set_index('ID')
     solutions_data.to_csv(name_out)
     print("The predictions are saved in the file",name_out)
+    if clearml_found:
+        task=clearml.Task.current_task()
+        task.set_user_properties(
+            {
+                "name": "submission file",
+                "description": "name of submitted file",
+                "value": name_out,
+            }
+        )
+
+
     return solutions_data
 
 @hydra.main(version_base="1.2", config_path="configs", config_name="main.yaml")
