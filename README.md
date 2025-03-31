@@ -28,7 +28,7 @@
 install xformers 
 pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu124
 
-
+https://docs.google.com/document/d/1nAnt2uDJADYEChoV9PGBuFedMIG3qlmMSut8C-ql4bc/edit?tab=t.0
 # Usage
 Installe le readme
 Run main.py ou template.ipynb( non recommandé)pour avoir les résultats
@@ -81,3 +81,12 @@ https://github.com/azkalot1/Histopathologic-Cancer-Detection/blob/master/utils.p
 -> AUG_train a voir
 
 -> Densenet 169
+
+
+
+# A encore faire :
+
+-> Implémenter Dans le cas où on ne cache pas les données ( genre run tous le fichier ) et on run le forward à chaque fois 
+
+
+-> Dans ce cas implémenter les différentes transformations de train 

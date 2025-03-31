@@ -27,10 +27,12 @@ except ImportError:
     clearml_found = False
 def setup_clearml(task_name,cfg):
     if clearml_found:
-        from src.logger.clearml import safe_init_clearml
+        from src.logger.clearml import safe_init_clearml,connect_hyperparams_summary
 
         task = safe_init_clearml(project_name="DLMI", task_name=task_name)
         task.connect(cfg)
+        connect_hyperparams_summary(cfg,task)
+        
 
     return task
 def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device):
@@ -80,6 +82,7 @@ def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,cr
             print("We exceeded the patience, we stop at epoch",epoch)
             break
         
+        
     return best_model
 def set_seed():
     pass
@@ -89,6 +92,7 @@ def set_seed():
 
 def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,name_out="baseline.csv"):
     # test_dataset=BaselineDataset(TEST_IMAGES_PATH,preprocessing=preprocessing,mode="test")
+    model=model.eval() 
     test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE)
     print("start testing")
     test_dataset = PrecomputedDataset(dataloader=test_dataloader,feature_extractor=model.feature_extractor,device=device,stage="test")
@@ -158,7 +162,7 @@ def main(cfg):
 
     # --- Setup functions
     OPTIMIZER = cfg.optimizer.optimizer
-    OPTIMIZER_PARAMS = cfg.optimizer.optimizer_params #{'lr': 0.001}
+    OPTIMIZER_PARAMS = cfg.optimizer.optimizer_params 
     LOSS = cfg.loss
     METRIC = cfg.metric
     NUM_EPOCHS = cfg.num_epochs
