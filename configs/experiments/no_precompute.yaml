@@ -1,0 +1,20 @@
+# @package _global_
+
+
+defaults:
+  - override /optimizer: optimizer.yaml
+  - override /model: Baseline.yaml
+test: test
+task_name: nopre
+
+model:  
+  _target_: src.models.basemodel_nopre.baseLine_nopre
+
+
+
+num_epochs: 7
+cache: False
+num_workers: 1
+transform:
+  transform_name: opti_A
+  # transform_name: basic

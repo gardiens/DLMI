@@ -1,3 +1,9 @@
 
 
 _target_: src.models.basemodel.baseLine
+
+name_model: dinov2_vits14
+
+hub: facebookresearch/dinov2
+
+linear_probing: base
