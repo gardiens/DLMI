@@ -1,8 +1,11 @@
 
 defaults:
   - _self_
-  - optimizer: optimizer.yaml
+  - optimizer: Adam.yaml
+  # - scheduler: cyclic.yaml
   - model: Baseline.yaml
+  - experiments: base_expe.yaml
+
 test: test
 task_name: debug
 
@@ -13,5 +16,11 @@ patience: 10
 
 num_workers: 2
 batch_size: 128
-transform_name: basic
 name_out_submit: output 
+
+
+cache: True
+
+transform:
+  transform_name: basic
+  resolution: 98

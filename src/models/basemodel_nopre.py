@@ -1,60 +1,36 @@
 import torch.nn as nn
-# class mainmodel(nn.Module):
-#     def __init__(self,model,linear_probing):
-#         super(mainmodel, self).__init__()
-#         self.feature_extractor = model
-#         self.linear_probing=linear_probing
-#     def forward(self,x):
-#         x=self.feature_extractor(x)
-#         x=self.linear_probing(x)
-#         return x
+from src.models.basemodel import * 
     
-class Linear_probingStrong(nn.Module):
-    def __init__(self,in_feature,out_feature=1):
-        super().__init__()
-        self.dense1 = nn.Sequential(nn.Linear(in_feature, 128))
-        self.dense2 = nn.Sequential(nn.Linear(128, 64))
-        self.classif = nn.Sequential(nn.Linear(64, 1))
-        self.sigm=nn.Sigmoid()
-        self.dropout=nn.Dropout(0.2)
-    def forward(self,x):
-        x=self.dense1(x)
-        x=self.dropout(x)
-        x=self.dense2(x)
-        x=self.dropout(x)
-        x=self.classif(x)
-        x=self.sigm(x)
-        return x
-class Linear_probingBase(nn.Module):
-    def __init__(self,in_feature,out_feature=1):
-        super(Linear_probingBase, self).__init__()
-        self.linear_probing=nn.Sequential(
-            nn.Linear(in_feature, out_feature),
-            nn.Sigmoid()
-        )
-    def forward(self,x):
-        x=self.linear_probing(x)
-        return x
 import torch 
-class baseLine(nn.Module):
+class baseLine_nopre(nn.Module):
     def __init__(self,name_model="dinov2_vits14",hub="facebookresearch/dinov2",linear_probing:str="base",device="cuda"):
         super().__init__()
 
         print("loading the model",name_model)
+        self.feature_extractor=torch.nn.Identity()
+        self.feature_extractor.name="identity"
 
-        self.feature_extractor= torch.hub.load(hub, name_model).to(device)
+        feature_extractor=torch.hub.load(hub, name_model).to(device)
         #! Important specify the name
-        self.feature_extractor.name=name_model
-        self.feature_extractor.eval()
+        feature_extractor.name=name_model   
+        feature_extractor.eval()
+        #   set the  parameteers as frozen 
+        for param in feature_extractor.parameters():
+            param.requires_grad = False
+
 
         # Determine the number of output features
-        self.num_features = self._get_num_features(name_model, self.feature_extractor)
+        self.num_features = self._get_num_features(name_model,feature_extractor)
         #! Adapt the model to the new task
 
-        self.adapt_feature_extractor(name_model,self.feature_extractor)
+        self.adapt_feature_extractor(name_model,feature_extractor)
 
         self.linear_probing=self._select_linear_probing(linear_probing).to(device)
-        self.linear_probing=torch.compile(self.linear_probing)
+        self.linear_probing=nn.Sequential(
+            feature_extractor,
+            self.linear_probing,
+            nn.Flatten(),
+        )
     def _select_linear_probing(self,linear_probing:str="base"):
         if linear_probing=="base":
             return Linear_probingBase(self.num_features)

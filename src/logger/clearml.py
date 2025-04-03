@@ -56,7 +56,8 @@ def connect_hyperparams_summary(
         if key in cfg_copy.keys():
             del cfg_copy[key]"""
 
-    cfg_copy = OmegaConf.masked_copy(cfg, KEYS_TO_LOG)
+    # cfg_copy = OmegaConf.masked_copy(cfg, KEYS_TO_LOG)
+    cfg_copy=cfg
     if resolve:
         container = OmegaConf.to_container(
             cfg_copy, resolve=True, throw_on_missing=False
@@ -185,6 +186,9 @@ def safe_init_clearml(project_name, task_name, *args, **kwargs) -> Task:
     Returns:
         Task: The initialized clearml Task object.
     """
+    #!
+    Task.set_random_seed(None)
+
     # * workaround: if you provide some / in task_name then add it in project name
     if "/" in task_name:
         # check the number of / in task_name

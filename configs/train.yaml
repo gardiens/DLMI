@@ -13,7 +13,6 @@ defaults:
 
 task_name: Random_name
 
-seed: 42
 
 # set False to skip model training
 train: True

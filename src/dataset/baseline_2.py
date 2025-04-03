@@ -9,32 +9,14 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 import os 
-def save_precomputeddataset(features,labels,stage,dir="data/"):
+from .baseline import save_precomputeddataset,load_precomputeddataset,models_have_same_weights,precompute
+from src.transforms.naive_transforms import get_transform
 
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    # save the precomputed dataset in a h5 format
-    output_file=os.path.join(dir, f"precomputed_dataset_{stage}.h5")
-    with h5py.File(output_file, "w") as f:
-        f.create_dataset("features", data=features.numpy())
-        f.create_dataset("labels", data=labels.numpy())
-        f.close()
-def load_precomputeddataset(dataset_path):
-    # load the precomputed dataset in a h5 format
-    with h5py.File(dataset_path, "r") as f:
-        features = f["features"][:]
-        labels = f["labels"][:]
-        f.close()
-    # convert to torch
-    features = torch.tensor(features)
-    labels = torch.tensor(labels)
-    return features, labels
 
-def models_have_same_weights(model1, model2, rtol=1e-5, atol=1e-8):
-    return model1.name==model2.name
-class BaselineDataset(Dataset):
+
+class BaselineDataset_totrain(Dataset):
     def __init__(self, dataset_path, preprocessing, mode):
-        super(BaselineDataset, self).__init__()
+        super(BaselineDataset_totrain, self).__init__()
         self.dataset_path = dataset_path
         self.preprocessing = preprocessing
         self.mode = mode
@@ -42,55 +24,76 @@ class BaselineDataset(Dataset):
         # Open the file once and keep it open for reading
         self.hdf = h5py.File(self.dataset_path, 'r')
         self.image_ids = list(self.hdf.keys())
-
+        # images,labels,center=self.load_all_images([self.dataset_path])
+        # self.images = images
+        # self.labels=labels
     def __len__(self):
         return len(self.image_ids)
+    def load_all_images(self,list_paths):
 
+        all_images = []
+        all_labels = []
+        all_centers = []
+
+        for path in list_paths:
+            print("Loading dataset:", path)
+            with h5py.File(path, 'r') as hdf:
+                keys = list(hdf.keys())
+                for key in tqdm(keys):
+                    img_array = np.array(hdf[key]['img'])  # shape (3, 96, 96)
+                    label = int(np.array(hdf[key]['label']))
+                    center = int(np.array(hdf[key]['metadata'])[0])
+
+                    all_images.append(img_array)
+                    all_labels.append(label)
+                    all_centers.append(center)
+
+        # Conversion en tenseurs PyTorch
+        images_np = np.stack(all_images, axis=0)   # shape (N, 3, 96, 96)
+        labels_np = np.array(all_labels, dtype=np.int64)
+        centers_np = np.array(all_centers, dtype=np.int64)
+
+        images_t = torch.from_numpy(images_np)
+        labels_t = torch.from_numpy(labels_np)
+        centers_t = torch.from_numpy(centers_np)
+
+        return images_t, labels_t, centers_t
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
         img = self.hdf[img_id]['img'][()]  # Read the image directly as a NumPy array
         label = self.hdf[img_id]['label'][()] if self.mode == 'train' else -1  # Use -1 for test mode
+        img=torch.from_numpy(img)
+        label=torch.tensor(label)
+        # label=torch.tensor(label)
+        # return self.preprocessing(torch.tensor(img)).float(), label.float().flatten()
+        # img=self.images[idx]
+        # label=self.labels[idx]
+        # Apply preprocessing
+        # Passage en np.array (H, W, C) pour Albumentations
+        image_np = img.permute(1, 2, 0).numpy().astype(np.float32)  # (96, 96, 3)
 
-        return self.preprocessing(torch.tensor(img)).float(), label
+        if self.preprocessing:
+            augmented = self.preprocessing(image=image_np)
+            img = augmented["image"]
+        else:
+            image_torch = torch.from_numpy(image_np).permute(2, 0, 1)
 
+        # img = self.preprocessing(img).float()
+        # permute it back 
+        img=torch.tensor(img).permute(2, 0, 1)  
+        return img, label.float().flatten()
     def __del__(self):
         # Ensure the file is closed when the dataset is deleted
         if hasattr(self, 'hdf') and self.hdf is not None:
             self.hdf.close()
-import sys
-def precompute(dataloader, model, device):
-    xs, ys = [], []
-    for x, y in tqdm(dataloader, leave=False):
-        with torch.no_grad():
-            xs.append(model(x.to(device)).detach().cpu().numpy())
-        ys.append(y.numpy())
-    xs = np.vstack(xs)
-    ys = np.hstack(ys)
-    return torch.tensor(xs), torch.tensor(ys)
-# def precompute(dataloader, model, device):
-    # xs, ys = [], []
 
-    # # progress_bar = tqdm(dataloader, total=len(dataloader), file=sys.stderr, dynamic_ncols=True, ascii=True, disable=False)
     
-    # for data in tqdm(dataloader):
-        
-    #     x, y = data
-    #     with torch.no_grad():
-    #         xs.append(model(x.to(device)).detach().cpu().numpy())
-    #     ys.append(y.numpy())
-        
-    #     # progress_bar.set_description(f"Precomputing features [{len(xs)}/{len(dataloader)}]")
-
-    # xs = np.vstack(xs)
-    # ys = np.hstack(ys)
-    
-    return torch.tensor(xs), torch.tensor(ys)
-class PrecomputedDataset(Dataset):
+class PrecomputedDataset_totrain(Dataset):
     data_path="data/precomputed/"
     def __init__(self, dataloader, feature_extractor,device,stage="train",cache=True):
         #! REMOVE CACHE IF YOU DONT HAVE INFINITE STORAGE
         
-        super(PrecomputedDataset, self).__init__()
+        super(PrecomputedDataset_totrain, self).__init__()
         self.stage=stage        
         self.cache=cache
         self.data_path=os.path.join(self.data_path,f"{feature_extractor.name}")
@@ -112,7 +115,7 @@ class PrecomputedDataset(Dataset):
             model=torch.load(model_path)
             print("old cache name",model.name)
             print("new cache name",feature_extractor.name)
-            if self.cache and models_have_same_weights(model,feature_extractor) and os.path.exists(self.dataset_path):
+            if models_have_same_weights(model,feature_extractor) and os.path.exists(self.dataset_path):
                 print("the same model is here is in the precomputed path, we load the features from disk")
                 features,labels=load_precomputeddataset(self.dataset_path)
 

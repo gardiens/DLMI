@@ -16,27 +16,20 @@ from src.transforms.naive_transforms import get_transform
 logging.getLogger('xformers').setLevel(logging.ERROR)
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
-from src.test import test_model
 from torch.utils.tensorboard import SummaryWriter
 import copy
+from src.dataset.baseline_2 import * 
 try:
     import clearml
 
     clearml_found = True 
+    # print("REMOVE IT ")
     # clearml_found = False
 except ImportError:
     clearml_found = False
-def setup_clearml(task_name,cfg):
-    if clearml_found:
-        from src.logger.clearml import safe_init_clearml,connect_hyperparams_summary
+from .main import setup_clearml
 
-        task = safe_init_clearml(project_name="DLMI", task_name=task_name)
-        task.connect(cfg)
-        connect_hyperparams_summary(cfg,task)
-        
-
-    return task
-def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device,use_clearml=True):
+def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device):
     min_loss =np.inf
     min_metric=-np.inf
     best_epoch=0
@@ -54,7 +47,7 @@ def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,cr
             train_metric = metric(train_pred.cpu(), train_y.int().cpu())
             train_metrics.extend([train_metric.item()]*len(train_y))
         print(f'Epoch train [{epoch+1}/{NUM_EPOCHS}] | Train Loss {np.mean(train_losses):.4f} | Train Metric {np.mean(train_metrics):.4f}')
-        if clearml_found and use_clearml:
+        if clearml_found:
             task=clearml.Task.current_task()
             logger=task.get_logger()
             logger.report_scalar("train_loss", "train_loss", iteration=epoch, value=np.mean(train_losses))
@@ -70,7 +63,7 @@ def train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,cr
             val_metric = metric(val_pred.cpu(), val_y.int().cpu())
             val_metrics.extend([val_metric.item()]*len(val_y))
         print(f'Epoch valid [{epoch+1}/{NUM_EPOCHS}] |  Valid Loss {np.mean(val_losses):.4f} | Valid Metric {np.mean(val_metrics):.4f}')
-        if clearml_found and use_clearml:
+        if clearml_found:
             logger.report_scalar("val_loss", "val_loss", iteration=epoch, value=np.mean(val_losses))
             logger.report_scalar("val_accuracy", "val_accuracy", iteration=epoch, value=np.mean(val_metrics))
         if np.mean(val_metrics) > min_metric:
@@ -89,6 +82,37 @@ def set_seed():
     pass
 
 
+def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,test_dataloader,name_out="baseline.csv"):
+    # test_dataset=BaselineDataset(TEST_IMAGES_PATH,preprocessing=preprocessing,mode="test")
+    model=model.eval() 
+  
+    predictions = []
+
+    for test_x, _ in tqdm(test_dataloader,leave=True):
+        with torch.no_grad():
+            test_pred = model.linear_probing(test_x.to(device))
+        predictions.append(test_pred.cpu().numpy())
+    predictions = np.vstack(predictions)
+
+    #* Put the threshold in 0 1 
+    solutions_data = {'ID': [], 'Pred': []}
+    solutions_data["Pred"]=(predictions>0.5).squeeze().astype(int)
+    solutions_data["ID"]=test_ids
+    solutions_data = pd.DataFrame(solutions_data).set_index('ID')
+    solutions_data.to_csv(name_out)
+    print("The predictions are saved in the file",name_out)
+    if clearml_found:
+        task=clearml.Task.current_task()
+        task.set_user_properties(
+            {
+                "name": "submission file",
+                "description": "name of submitted file",
+                "value": name_out,
+            }
+        )
+
+
+    return solutions_data
 
 @hydra.main(version_base="1.2", config_path="configs", config_name="main.yaml")
 def main(cfg):
@@ -111,17 +135,23 @@ def main(cfg):
             cfg=cfg,task_name=cfg.task_name
         )
     print("a random number",random.randint(0, 255))
-    preprocessing = get_transform(transform_name=cfg.transform.transform_name,resolution=cfg.transform.resolution)
-    train_dataset = BaselineDataset(TRAIN_IMAGES_PATH, preprocessing, 'train')
-    val_dataset = BaselineDataset(VAL_IMAGES_PATH, preprocessing, 'train')
+    train_preprocessing = get_transform(transform_name=cfg.transform.transform_name,resolution=cfg.transform.resolution,stage="train")
+    val_preprocessing= get_transform(transform_name=cfg.transform.transform_name,resolution=cfg.transform.resolution,stage="val")
+    train_dataset = BaselineDataset_totrain(TRAIN_IMAGES_PATH, train_preprocessing, 'train')
+    val_dataset = BaselineDataset_totrain(VAL_IMAGES_PATH, val_preprocessing, 'train')
+    
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE,num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)   
+    
+    test_dataset = BaselineDataset_totrain(TEST_IMAGES_PATH, val_preprocessing, 'test')
+    test_dataloader= DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
+
     #* Apply the preprocesing to the dataset
 
     print("loading the model")
     # Main_model= baseLine(device)
     Main_model=hydra.utils.instantiate(cfg.model,device=device)
-    print("main model",Main_model)
+    # print("main model",Main_model)
     feature_extractor=Main_model.feature_extractor
 
 
@@ -133,6 +163,7 @@ def main(cfg):
     NUM_EPOCHS = cfg.num_epochs
     PATIENCE = cfg.patience
     linear_probing=Main_model.linear_probing
+    print("the linear probing",linear_probing)
     # Load function 
     metric = getattr(torchmetrics, METRIC)('binary')
 
@@ -143,16 +174,7 @@ def main(cfg):
     print("Precompute the features")
     print("We did it once")
     cache=cfg.cache
-    train_dataset = PrecomputedDataset(dataloader=train_dataloader,feature_extractor=feature_extractor,device=device,stage="train",cache=cache)
-    val_dataset = PrecomputedDataset(dataloader=val_dataloader,feature_extractor=feature_extractor,device=device,stage="val",cache=cache)
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE,num_workers=num_workers)
-    val_dataloader = DataLoader(val_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
-    
-    test_dataset = BaselineDataset(TEST_IMAGES_PATH, preprocessing, 'test')
-    test_dataloader= DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
-    print("start testing")
-    test_dataset = PrecomputedDataset(dataloader=test_dataloader,feature_extractor=Main_model.feature_extractor,device=device,stage="test")
-    test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=2)
+
     #* ---train the model---
     print("Start training the last layer")
 
@@ -160,7 +182,24 @@ def main(cfg):
     
     #* Test the model
     print("Test the model")
-    test_model(model=Main_model,test_dataset=test_dataset,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out=name_out_submit,clearml_found=clearml_found)
+    combine_strategy="mean"
+    tta_strategy="densenet169"
+    tta_strategy="NoTTA"
+    from src.test import test_model_TTA
+    print("test dataset",test_dataset)
+    test_model_TTA(
+    model=Main_model,
+    test_dataset=test_dataset,
+    device=device,
+    BATCH_SIZE=BATCH_SIZE,
+    test_ids=test_dataset.image_ids,
+    test_dataloader=test_dataloader,
+    name_out=name_out_submit,
+    combine_strategy=combine_strategy,
+    tta_strategy=tta_strategy,
+    clearml_found=clearml_found,
+)
+    test_model(model=Main_model,test_dataset=test_dataset,test_dataloader=test_dataloader,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out=name_out_submit)
     return linear_probing
     
 if __name__=="__main__":
