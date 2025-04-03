@@ -16,6 +16,7 @@ from src.transforms.naive_transforms import get_transform
 logging.getLogger('xformers').setLevel(logging.ERROR)
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
+from src.test import test_model
 from torch.utils.tensorboard import SummaryWriter
 import copy
 try:
@@ -88,40 +89,6 @@ def set_seed():
     pass
 
 
-def test_model(model,test_dataset,device,BATCH_SIZE,test_ids,name_out="baseline.csv"):
-    # test_dataset=BaselineDataset(TEST_IMAGES_PATH,preprocessing=preprocessing,mode="test")
-    model=model.eval() 
-    test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE)
-    print("start testing")
-    test_dataset = PrecomputedDataset(dataloader=test_dataloader,feature_extractor=model.feature_extractor,device=device,stage="test")
-    test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=2)
-    predictions = []
-
-    for test_x, _ in tqdm(test_dataloader,leave=True):
-        with torch.no_grad():
-            test_pred = model.linear_probing(test_x.to(device))
-        predictions.append(test_pred.cpu().numpy())
-    predictions = np.vstack(predictions)
-
-    #* Put the threshold in 0 1 
-    solutions_data = {'ID': [], 'Pred': []}
-    solutions_data["Pred"]=(predictions>0.5).squeeze().astype(int)
-    solutions_data["ID"]=test_ids
-    solutions_data = pd.DataFrame(solutions_data).set_index('ID')
-    solutions_data.to_csv(name_out)
-    print("The predictions are saved in the file",name_out)
-    if clearml_found:
-        task=clearml.Task.current_task()
-        task.set_user_properties(
-            {
-                "name": "submission file",
-                "description": "name of submitted file",
-                "value": name_out,
-            }
-        )
-
-
-    return solutions_data
 
 @hydra.main(version_base="1.2", config_path="configs", config_name="main.yaml")
 def main(cfg):
@@ -181,15 +148,19 @@ def main(cfg):
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE,num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
     
+    test_dataset = BaselineDataset(TEST_IMAGES_PATH, preprocessing, 'test')
+    test_dataloader= DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=num_workers)
+    print("start testing")
+    test_dataset = PrecomputedDataset(dataloader=test_dataloader,feature_extractor=Main_model.feature_extractor,device=device,stage="test")
+    test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=BATCH_SIZE,num_workers=2)
     #* ---train the model---
     print("Start training the last layer")
 
     linear_probing = train(linear_probing,NUM_EPOCHS,train_dataloader,val_dataloader,optimizer,criterion,metric,PATIENCE,device)
     
     #* Test the model
-    test_dataset = BaselineDataset(TEST_IMAGES_PATH, preprocessing, 'test')
     print("Test the model")
-    test_model(model=Main_model,test_dataset=test_dataset,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out=name_out_submit)
+    test_model(model=Main_model,test_dataset=test_dataset,device=device,BATCH_SIZE=BATCH_SIZE,test_ids=test_dataset.image_ids,name_out=name_out_submit,clearml_found=clearml_found)
     return linear_probing
     
 if __name__=="__main__":
