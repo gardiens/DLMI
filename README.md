@@ -28,7 +28,7 @@
 install xformers 
 pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu124
 
-https://docs.google.com/document/d/1nAnt2uDJADYEChoV9PGBuFedMIG3qlmMSut8C-ql4bc/edit?tab=t.0
+
 # Usage
 Installe le readme
 Run main.py ou template.ipynb( non recommandé)pour avoir les résultats
@@ -39,6 +39,9 @@ Run main.py ou template.ipynb( non recommandé)pour avoir les résultats
 # Lien article 
 https://www.overleaf.com/project/67e9093698a3bb4624c4bf3b
 
+# Proposé par richard
+https://docs.google.com/document/d/1nAnt2uDJADYEChoV9PGBuFedMIG3qlmMSut8C-ql4bc/edit?tab=t.0
+https://drive.google.com/drive/folders/1Zy3lYCjum9ZP7ROx-SK-XYNd2nsM9Oy_
 
 # A implémenter:
 -> Sélection par rapport aux cliniques/ nom des cliniques . ( en trainig/test)
@@ -90,3 +93,7 @@ https://github.com/azkalot1/Histopathologic-Cancer-Detection/blob/master/utils.p
 
 
 -> Dans ce cas implémenter les différentes transformations de train 
+
+# Ce soir
+rerun les script avec différentes résolutions qui marchent déjà 
+Pour Le TTA/ training du modèle complet je crois j'abanndonne ptet 
