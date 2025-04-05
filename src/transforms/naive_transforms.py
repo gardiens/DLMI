@@ -40,7 +40,7 @@ def get_transform(transform_name:str="basic",resolution=98,stage="train"):
         if stage=="train":
             p=1
             transform=A.Compose([
-            A.Resize(98, 98),
+            A.Resize(resolution, resolution),
             A.HorizontalFlip(),
             A.VerticalFlip(),
             A.RandomRotate90(),
@@ -63,11 +63,11 @@ def get_transform(transform_name:str="basic",resolution=98,stage="train"):
         ], p=p)
         else:
             transform=A.Compose([
-            A.Resize(98, 98),
+            A.Resize(resolution, resolution),
         ], p=1)
     elif transform_name=="opti":
         transform= T.Compose([
-        T.Resize((97, 97)),
+        T.Resize((resolution, resolution)),
         T.RandomHorizontalFlip(),
         T.RandomVerticalFlip(),
         T.RandomRotation((0, 90)),  # torchvision does not support strict 90-degree rotations or transpose

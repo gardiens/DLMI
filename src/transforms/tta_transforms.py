@@ -59,14 +59,31 @@ def get_transform_tta(tta_strategy):
     else:
         raise NotImplementedError(f"TTA strategy {tta_strategy} not implemented")
     return tta_transform
-def apply_tta(sample,num_tta:int,tta_transform):
+def apply_tta(sample,num_tta:int,tta_transform,tta_strategy):
     #? We suppose TTA to be a tensor here 
     # create a output tensor of size (num_tta,sample.shape)
+    if tta_strategy=="NoTTA":
 
-    output=torch.zeros((num_tta,sample.shape[0],sample.shape[1],sample.shape[2]))
-    
-    # the zero one is the original one
-    output[0]=sample
-    for i in range(1,num_tta):
-        output[i]=tta_transform(sample)
+        output=torch.zeros((1,sample.shape[0],sample.shape[1],sample.shape[2]))
+        
+        # the zero one is the original one
+        output[0]=sample
+        return output
+
+    else:
+        output=torch.zeros((4,sample.shape[0],sample.shape[1],sample.shape[2]))
+        # Original
+        output[0] = sample
+
+        # Horizontal Flip
+        output[1] = T.RandomHorizontalFlip(p=1.0)(sample)
+        # first one is Horizontal flip
+
+        # vertical flip
+        output[2]= T.RandomVerticalFlip(p=1.0)(sample)
+
+        # transpose
+        output[3]= T.RandomRotation(degrees=90)(sample)
+        # small noise 
+        # output[4]= T.GaussianBlur(kernel_size=3)(sample)
     return output

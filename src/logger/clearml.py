@@ -187,7 +187,7 @@ def safe_init_clearml(project_name, task_name, *args, **kwargs) -> Task:
         Task: The initialized clearml Task object.
     """
     #!
-    Task.set_random_seed(None)
+    # Task.set_random_seed(None)
 
     # * workaround: if you provide some / in task_name then add it in project name
     if "/" in task_name:
